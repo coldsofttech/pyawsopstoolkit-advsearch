@@ -4,6 +4,7 @@ from unittest.mock import patch, MagicMock
 
 from pyawsopstoolkit_advsearch import OR
 from pyawsopstoolkit_advsearch.ec2 import SecurityGroup
+from pyawsopstoolkit_advsearch.exceptions import SearchAttributeError
 
 
 class TestSecurityGroup(unittest.TestCase):
@@ -377,6 +378,25 @@ class TestSecurityGroup(unittest.TestCase):
         self.assertIsNone(result[0].ip_permissions_egress)
         self.assertEqual(result[0].tags[0].get('Key'), 'Name')
         self.assertEqual(result[0].tags[1].get('Key'), 'Environment')
+
+    @patch('boto3.Session')
+    @patch('pyawsopstoolkit.session.Session.get_session')
+    def test_search_security_groups_with_in_use_without_include_usage(self, mock_get_session, mock_session):
+        mock_client = MagicMock()
+        mock_caller_identity = MagicMock()
+
+        mock_caller_identity.get.return_value = '123456789012'
+        mock_client.get_caller_identity.return_value = mock_caller_identity
+        mock_get_session.return_value.client.return_value = mock_client
+
+        session_instance = mock_session.return_value
+        session_instance.client.return_value.list_buckets.return_value = {}
+
+        with self.assertRaises(SearchAttributeError):
+            self.security_group.search_security_groups(
+                condition=OR,
+                in_use=True
+            )
 
 
 if __name__ == "__main__":

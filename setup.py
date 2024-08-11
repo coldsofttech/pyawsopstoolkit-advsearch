@@ -13,7 +13,7 @@ setup(
     requires_python=">=3.10",
     install_requires=[
         "pyawsopstoolkit==0.1.19",
-        "pyawsopstoolkit_models==0.1.0",
+        "pyawsopstoolkit_models==0.1.1",
         "botocore==1.34.158"
     ],
     long_description=open('README.md').read(),

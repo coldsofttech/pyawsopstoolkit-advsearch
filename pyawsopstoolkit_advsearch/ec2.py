@@ -1,14 +1,45 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 
-from pyawsopstoolkit_advsearch import OR
+from pyawsopstoolkit_advsearch import OR, AND
 from pyawsopstoolkit_advsearch.__globals__ import MAX_WORKERS
 from pyawsopstoolkit_advsearch.__validations__ import _validate_type
-from pyawsopstoolkit_advsearch.exceptions import AdvanceSearchError
+from pyawsopstoolkit_advsearch.exceptions import AdvanceSearchError, SearchAttributeError
 from pyawsopstoolkit_advsearch.search import _match_tag_condition, _match_number_condition, \
-    _match_number_range_condition, _match_condition, AND
+    _match_number_range_condition, _match_condition, _match_bool_condition
 
 BOTO3_CLIENT = 'ec2'
+
+
+def _get_security_group_usage(session, region, security_group_id) -> bool:
+    """
+    Utilizing boto3 IAM, this method verifies if the specified security_group_id is associated with any ENI (Elastic
+    Network Interface). Reference:
+    https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/ec2/client/describe_network_interfaces.html
+    """
+    from botocore.config import Config
+    from botocore.exceptions import ClientError
+
+    usage = False
+
+    try:
+        if session.cert_path:
+            ec2_client = session.get_session().client(BOTO3_CLIENT, config=Config(region), verify=session.cert_path)
+        else:
+            ec2_client = session.get_session().client(BOTO3_CLIENT, config=Config(region))
+
+        ec2_response = ec2_client.describe_network_interfaces(
+            Filters=[{
+                "Name": "group-id",
+                "Values": [security_group_id]
+            }]
+        )
+        if ec2_response:
+            usage = True if len(ec2_response.get('NetworkInterfaces', [])) > 0 else False
+    except ClientError as e:
+        raise e
+
+    return usage
 
 
 def _list_security_groups(session, region) -> list:
@@ -151,11 +182,23 @@ class SecurityGroup:
             self,
             condition: str = OR,
             region: str | list = 'eu-west-1',
+            include_usage: bool = False,
             **kwargs
     ) -> list:
         """
         Returns a list of EC2 security groups using advanced search feature supported by the specified arguments. For
         details on supported kwargs, please refer to the readme document.
+
+        :param condition: The condition to be applied: 'OR' or 'AND'.
+        :type condition: str
+        :param region: The region or list of regions to search for EC2 security groups. Defaults to eu-west-1.
+        :type region: str | list
+        :param include_usage: Flag to indicate if verify if EC2 security group is associated with any ENI (Elastic
+        Network Interface).
+        :type include_usage: bool
+        :param kwargs: Key-based arguments defining search criteria.
+        :return: A list of EC2 security groups.
+        :rtype: list
         """
         from pyawsopstoolkit_validators.region_validator import region as region_val
 
@@ -168,7 +211,11 @@ class SecurityGroup:
             raise ValueError('region should be a string or list of strings.')
 
         def _process_security_group(sg_detail, _region):
-            return self._convert_to_ec2_security_group(self.session.get_account(), _region, sg_detail)
+            sg = self._convert_to_ec2_security_group(self.session.get_account(), _region, sg_detail)
+            if include_usage:
+                sg.in_use = _get_security_group_usage(self.session, _region, sg_detail.get('GroupId', ''))
+
+            return sg
 
         def _match_security_group(sg_detail, _region):
             if sg_detail:
@@ -230,10 +277,14 @@ class SecurityGroup:
                             sg_field = [
                                 ip_prem.get('IpProtocol', '').replace('-1', value) for ip_prem in ip_permissions
                             ]
+                        elif key.lower() == 'in_use':
+                            if include_usage:
+                                sg_field = _get_security_group_usage(self.session, region, sg_detail.get('GroupId', ''))
+                                matched = _match_bool_condition(value, sg_field, condition, matched)
 
                         if key.lower() not in [
                             'tag_key', 'tag', 'in_from_port', 'out_from_port', 'in_to_port', 'out_to_port',
-                            'in_port_range', 'out_port_range'
+                            'in_port_range', 'out_port_range', 'in_use'
                         ]:
                             matched = _match_condition(value, sg_field, condition, matched)
 
@@ -248,6 +299,15 @@ class SecurityGroup:
 
         from botocore.exceptions import ClientError
         try:
+            include_usage_keys = {
+                'in_use'
+            }
+
+            if not include_usage and any(k in include_usage_keys for k in kwargs):
+                raise SearchAttributeError(
+                    f'include_usage is required for below keys: {", ".join(sorted(include_usage_keys))}'
+                )
+
             for _region in regions_to_process:
                 security_groups_to_process = _list_security_groups(self.session, _region)
 
