@@ -1,0 +1,3 @@
+pyawsopstoolkit==0.1.19
+pyawsopstoolkit_models==0.1.0
+botocore==1.34.158
