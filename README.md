@@ -53,9 +53,9 @@ The **SecurityGroup** class provides advanced search features related to EC2 sec
 
 ##### Methods
 
-- `search_security_groups(condition: str = OR, region: str | list = 'eu-west-1', **kwargs) -> list`: Returns a list of
-  EC2 security groups using advanced search features supported by the specified arguments. For details on supported
-  keyword arguments, please refer to the section below.
+- `search_security_groups(condition: str = OR, region: str | list = 'eu-west-1', include_usage: bool = False, **kwargs) -> list`:
+  Returns a list of EC2 security groups using advanced search features supported by the specified arguments. For details
+  on supported keyword arguments, please refer to the section below.
 
 ##### Properties
 
@@ -68,6 +68,7 @@ Below are the supported keyword arguments:
 
 - `description`: Specifies the description of the EC2 security group. Example: `description='test'`.
 - `id`: Specifies the unique identifier of the EC2 security group. Example: `id='sg-12345678'`.
+- `in_use`: Specifies the flag to indicate if the EC2 security group has any associated ENIs. Example: `in_use=True`.
 - `in_from_port`: Specifies the inbound EC2 security group rule entry "from" port. Example: `in_from_port=80`.
 - `in_ip_protocol`: Specifies the inbound EC2 security group rule entry protocol. Example: `in_ip_protocol='tcp'`.
 - `in_port_range`: Specifies the inbound EC2 security group rule entry port if it exists within range "from" and "to".
@@ -124,6 +125,9 @@ print(sg_object.search_security_groups(in_from_port=80))
 
 # 7. Search for EC2 security groups that contain 'all' traffic within inbound rule entry protocols
 print(sg_object.search_security_groups(in_ip_protocol='all'))
+
+# 8. Search for EC2 security groups that are in use and associated with ENIs
+print(sg_object.search_security_groups(include_usage=True, in_use=True))
 ```
 
 ### iam

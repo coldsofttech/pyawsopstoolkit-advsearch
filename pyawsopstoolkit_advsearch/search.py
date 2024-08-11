@@ -46,6 +46,37 @@ def _match_condition(value: str, search_field: str | list, condition: str, match
     return matched
 
 
+def _match_bool_condition(value: bool, search_field: bool | list, condition: str, matched: bool) -> bool:
+    """
+    Matches the bool condition based on the specified parameters.
+
+    :param value: The value to be evaluated.
+    :type value: bool
+    :param search_field: The value or list of values to compare against.
+    :type search_field: bool | list
+    :param condition: The condition to be applied: 'OR' or 'AND'.
+    :type condition: str
+    :param matched: The current matching status.
+    :type matched: bool
+    :return: Returns a boolean value (True or False) based on the comparison.
+    :rtype: bool
+    """
+    if value is None or search_field is None:
+        return False
+
+    if isinstance(search_field, bool):
+        search_field = [search_field]
+
+    found_match = any(value == field for field in search_field)
+
+    if condition == OR:
+        return matched or found_match
+    elif condition == AND:
+        return matched and found_match if matched else found_match
+
+    return matched
+
+
 def _match_number_condition(value: int, search_field: int | list, condition: str, matched: bool) -> bool:
     """
     Matches the number condition based on the specified parameters.
